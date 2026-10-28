@@ -6,8 +6,6 @@ author 'JRS TEAM'
 description 'JRS Inventory unified resource: inventory + weapons + storage + ground + robbery + transactional trade'
 version '2.4.6'
 
-provide 'jrs_trade'
-
 dependencies {
     'jrs_core',
     'oxmysql',
@@ -54,7 +52,8 @@ server_exports {
     'tradeReserveOffer', 'tradeReturnEscrow', 'updatestorage',
     'AcquireInventoryLock', 'ReleaseInventoryLock', 'IsInventoryLocked', 'InventoryTransaction',
     'RegisterInventoryHook', 'GetFreeWeight', 'GetMaxWeight', 'WheelItemInfo', 'UseItemFromWheel', 'reloadItemDefinitions',
-    'OpenPlayerInventoryAdmin'
+    'OpenPlayerInventoryAdmin',
+    'RegisterCustomStorage', 'OpenCustomStorage'
 }
 
 server_scripts {
@@ -76,7 +75,8 @@ server_scripts {
     'server/ground.lua',
     'server/social.lua',
     'server/robbery.lua',
-    'modules/trade/server.lua'
+    'modules/trade/server.lua',
+    'server/jrs_storage_api.lua'
 }
 
 ui_page 'html/index.html'
@@ -116,6 +116,3 @@ escrow_ignore {
     'modules/trade/sql/*.sql',
 }
 
--- extended inventory API (custom inventories, JRS-style exports) for the extra scripts
-client_scripts { 'client/compat_client.lua' }
-server_scripts { 'server/compat_api.lua', 'server/compat_custom.lua' }

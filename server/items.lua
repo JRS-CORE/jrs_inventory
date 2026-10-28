@@ -98,9 +98,22 @@ local function createUniqueItemId()
     return candidate
 end
 
+-- Compares two stacks of the same item after applying the item's default
+-- metadata to both. A stack created by a path that skipped the defaults (or
+-- before they were configured) must still match a freshly added copy, e.g. an
+-- item picked up from the ground, instead of staying a separate stack.
+local function metadataMatches(itemName, first, second)
+    if metadataEqual(first or {}, second or {}) then return true end
+    if type(JRSInventoryNormalizeMetadata) ~= "function" then return false end
+    return metadataEqual(
+        JRSInventoryNormalizeMetadata(first, itemName, true),
+        JRSInventoryNormalizeMetadata(second, itemName, true)
+    )
+end
+
 local function findMatchingStack(playerId, itemName, metadata)
     for index, item in pairs(inv_table[tonumber(playerId)] or {}) do
-        if item.item == itemName and metadataEqual(item.metaData or {}, metadata or {}) then
+        if item.item == itemName and metadataMatches(itemName, item.metaData, metadata) then
             return index
         end
     end
@@ -118,8 +131,7 @@ function AddInventoryItemDirect(playerId, itemName, count, metadata, preferredSl
     local itemDef = ResolveItemDef(itemName)
     if itemName == "" or not itemDef then return false, "invalid_item" end
 
-    local User = jrsCore and jrsCore.getUser and jrsCore.getUser(playerId)
-    local Character = User and User.getUsedCharacter
+    local Character = jrsCore and jrsCore.GetCharacter and jrsCore.GetCharacter(playerId)
     if not Character then return false, "player_not_found" end
     if type(IsInventoryLoadedForPlayer) ~= "function" or not IsInventoryLoadedForPlayer(playerId, Character) then
         return false, "inventory_not_loaded"
@@ -447,8 +459,7 @@ local function remapMergedItemInHotbar(playerId, removedItemId, targetItemId, it
 
     if not changed then return end
 
-    local User = jrsCore and jrsCore.getUser and jrsCore.getUser(playerId)
-    local Character = User and User.getUsedCharacter
+    local Character = jrsCore and jrsCore.GetCharacter and jrsCore.GetCharacter(playerId)
     if not Character then return end
 
     exports[Config.MysqlResource]:execute(
@@ -511,7 +522,7 @@ AddEventHandler('jrs_inventory:mergeStacks', function(sourceItemId, targetItemId
     end
 
     if tostring(sourceItem.item) ~= tostring(targetItem.item)
-        or not metadataEqual(sourceItem.metaData or {}, targetItem.metaData or {}) then
+        or not metadataMatches(tostring(sourceItem.item), sourceItem.metaData, targetItem.metaData) then
         finish()
         notifyInventory(src, _Up(src, 'stack_merge_mismatch'))
         return
@@ -587,8 +598,8 @@ AddEventHandler('jrs_inventory:transferItem', function(target, giverItemId, coun
 
     local giverUser = jrsCore and jrsCore.getUser and jrsCore.getUser(giver)
     local targetUser = jrsCore and jrsCore.getUser and jrsCore.getUser(target)
-    local giverCharacter = giverUser and giverUser.getUsedCharacter
-    local targetCharacter = targetUser and targetUser.getUsedCharacter
+    local giverCharacter = giverUser and giver(User.character or User.getUsedCharacter)
+    local targetCharacter = targetUser and target(User.character or User.getUsedCharacter)
     if not giverCharacter or not targetCharacter then
         finish()
         fail("player_not_loaded", _Up(giver, 'invalid_target'))
@@ -701,7 +712,7 @@ AddEventHandler('jrsCore:subItem', function(target, name, count, callback, sourc
     end
 
     local User = jrsCore and jrsCore.getUser and jrsCore.getUser(target)
-    if not User or not User.getUsedCharacter then
+    if not User or not (User.character or User.getUsedCharacter) then
         finishInventoryOperation(callback, false, "player_not_found", { item = name, amount = count })
         return false
     end
@@ -785,7 +796,7 @@ function JRSInventorySubItemSync(target, name, count, sourceResource)
     end
 
     local User = jrsCore and jrsCore.getUser and jrsCore.getUser(target)
-    if not User or not User.getUsedCharacter then
+    if not User or not (User.character or User.getUsedCharacter) then
         return false, "player_not_found", { item = name, amount = count }
     end
 
@@ -901,7 +912,7 @@ AddEventHandler('jrsCore:subItemByID', function(target, itemId, count, callback,
     end
 
     local User = jrsCore and jrsCore.getUser and jrsCore.getUser(target)
-    if not User or not User.getUsedCharacter then
+    if not User or not (User.character or User.getUsedCharacter) then
         finishInventoryOperation(callback, false, "player_not_found", { itemId = itemId, amount = count })
         return false
     end
@@ -1016,8 +1027,8 @@ local function transferCurrency(giver, target, amount, currencyType, currencyNam
 
     local giverUser = jrsCore and jrsCore.getUser and jrsCore.getUser(giver)
     local targetUser = jrsCore and jrsCore.getUser and jrsCore.getUser(target)
-    local giverCharacter = giverUser and giverUser.getUsedCharacter
-    local targetCharacter = targetUser and targetUser.getUsedCharacter
+    local giverCharacter = giverUser and giver(User.character or User.getUsedCharacter)
+    local targetCharacter = targetUser and target(User.character or User.getUsedCharacter)
     if not giverCharacter or not targetCharacter then
         finish()
         notifyInventory(giver, _Up(giver, 'invalid_target'))
@@ -1119,7 +1130,7 @@ AddEventHandler('jrs_inventory:multi_delete_items', function(entries)
     end
 
     local User = jrsCore and jrsCore.getUser and jrsCore.getUser(_source)
-    local Character = User and User.getUsedCharacter
+    local Character = User and (User.character or User.getUsedCharacter)
     if not Character then return end
     if not TryLockInventoryPlayer(_source) then
         notifyInventory(_source, _Up(_source, 'transfer_busy'))
